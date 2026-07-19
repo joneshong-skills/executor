@@ -10,6 +10,8 @@ Usage:
     python3 progress_tracker.py complete-phase <blueprint-id> <phase-num>
     python3 progress_tracker.py complete-task <blueprint-id> <task-id>
     python3 progress_tracker.py deviation <blueprint-id> <phase-num> "description"
+    python3 progress_tracker.py fail-phase <blueprint-id> <phase-num> <reason>
+    python3 progress_tracker.py react <blueprint-id> <phase-num> <trigger> <action>
     python3 progress_tracker.py status <blueprint-id>
     python3 progress_tracker.py report <blueprint-id>
 """
@@ -156,6 +158,48 @@ def cmd_deviation(blueprint_id: str, phase_num: str, description: str) -> None:
     print(f"Deviation logged for phase {phase_num}: {description}")
 
 
+def cmd_fail_phase(blueprint_id: str, phase_num: str, reason: str) -> None:
+    """Mark a phase as failed (CI, lint, etc.)."""
+    progress = _load_progress(blueprint_id)
+    if phase_num not in progress.get("phases", {}):
+        print(f"Error: Phase {phase_num} not found", file=sys.stderr)
+        sys.exit(1)
+
+    progress["phases"][phase_num]["status"] = "ci_failed"
+    progress["phases"][phase_num]["fail_reason"] = reason
+    _save_progress(blueprint_id, progress)
+    print(f"Phase {phase_num} failed: {reason}")
+
+
+def cmd_react(blueprint_id: str, phase_num: str, trigger: str, action: str) -> None:
+    """Log an automatic reaction to a failure."""
+    progress = _load_progress(blueprint_id)
+    if phase_num not in progress.get("phases", {}):
+        print(f"Error: Phase {phase_num} not found", file=sys.stderr)
+        sys.exit(1)
+
+    phase = progress["phases"][phase_num]
+    reactions = phase.setdefault("reactions", [])
+    attempt = len(reactions) + 1
+    MAX_RETRIES = 2
+
+    reactions.append({
+        "attempt": attempt,
+        "trigger": trigger,
+        "action": action,
+        "timestamp": _now(),
+    })
+
+    if attempt > MAX_RETRIES:
+        phase["status"] = "needs_input"
+        print(f"Phase {phase_num}: max retries ({MAX_RETRIES}) reached → needs_input")
+    else:
+        phase["status"] = "fix_in_progress"
+        print(f"Phase {phase_num}: auto-react attempt {attempt}/{MAX_RETRIES} — {action}")
+
+    _save_progress(blueprint_id, progress)
+
+
 def cmd_status(blueprint_id: str) -> None:
     """Show current progress status."""
     progress = _load_progress(blueprint_id)
@@ -169,8 +213,11 @@ def cmd_status(blueprint_id: str) -> None:
     print()
 
     for pnum, phase in sorted(progress.get("phases", {}).items()):
-        status_icon = {"pending": " ", "in_progress": ">", "completed": "x",
-                       "blocked": "!"}
+        status_icon = {
+            "pending": " ", "in_progress": ">", "completed": "x",
+            "blocked": "!", "ci_failed": "F", "needs_input": "?",
+            "fix_in_progress": "R"
+        }
         icon = status_icon.get(phase["status"], "?")
         tasks = phase.get("tasks", {})
         done_count = sum(1 for t in tasks.values() if t.get("done"))
@@ -227,6 +274,27 @@ def cmd_report(blueprint_id: str) -> None:
                 f"- **Phase {d['phase']}** ({d['timestamp']}): {d['description']}"
             )
 
+    # Collect phases that have reactions
+    phases_with_reactions = [
+        (pnum, phase)
+        for pnum, phase in sorted(progress.get("phases", {}).items())
+        if phase.get("reactions")
+    ]
+    if phases_with_reactions:
+        lines.extend(["", "## Auto-Reaction Log", ""])
+        for pnum, phase in phases_with_reactions:
+            lines.append(f"### Phase {pnum}: {phase['title']}")
+            if phase.get("fail_reason"):
+                lines.append(f"> Failure reason: {phase['fail_reason']}")
+            lines.append("")
+            lines.append("| Attempt | Trigger | Action | Timestamp |")
+            lines.append("|---------|---------|--------|-----------|")
+            for r in phase["reactions"]:
+                lines.append(
+                    f"| {r['attempt']} | {r['trigger']} | {r['action']} | {r['timestamp']} |"
+                )
+            lines.append("")
+
     unplanned = progress.get("unplanned_work", [])
     if unplanned:
         lines.extend(["", "## Unplanned Work", ""])
@@ -258,6 +326,8 @@ def main():
         "complete-phase": (cmd_complete_phase, 2, "<blueprint-id> <phase-num>"),
         "complete-task": (cmd_complete_task, 2, "<blueprint-id> <task-id>"),
         "deviation": (cmd_deviation, 3, "<blueprint-id> <phase-num> <description>"),
+        "fail-phase": (cmd_fail_phase, 3, "<blueprint-id> <phase-num> <reason>"),
+        "react": (cmd_react, 4, "<blueprint-id> <phase-num> <trigger> <action>"),
         "status": (cmd_status, 1, "<blueprint-id>"),
         "report": (cmd_report, 1, "<blueprint-id>"),
     }

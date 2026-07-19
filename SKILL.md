@@ -1,15 +1,10 @@
 ---
 name: executor
-description: >-
-  This skill should be used when the user asks to "execute the blueprint",
-  "run the plan", "start executing", "follow the blueprint",
-  "按照藍圖執行", "開始跑計劃", "照計劃做", "執行 blueprint",
-  mentions executing a previously created blueprint or plan, or discusses
-  step-by-step execution of a structured implementation plan with progress
-  tracking and deviation logging.
+description: "executor, blueprint, execute, run, plan, start, executing, 按照藍圖執行, 開始跑計劃, 照計劃做, 執行 blueprint"
 version: 0.2.0
 tools: Read, Bash, Edit, Write, Glob, Grep, sandbox_execute
 argument-hint: "<blueprint-file-path or blueprint-id>"
+disable-model-invocation: true
 ---
 
 # Executor — Faithful Plan Execution
@@ -48,7 +43,7 @@ output(data)
 **Fallback (Bash)**:
 ```bash
 # By path
-python3 ~/.claude/skills/executor/scripts/parse_blueprint.py ~/.claude/data/blueprints/{file}.md
+~/.local/bin/python3 ~/.claude/skills/executor/scripts/parse_blueprint.py ~/.claude/data/blueprints/{file}.md
 
 # List available blueprints
 ls -lt ~/.claude/data/blueprints/*.md | head -10
@@ -73,7 +68,7 @@ If validation fails, report the issue and stop.
 ### Step 3: Create Progress Tracker
 
 ```bash
-python3 ~/.claude/skills/executor/scripts/progress_tracker.py init {blueprint-path}
+~/.local/bin/python3 ~/.claude/skills/executor/scripts/progress_tracker.py init {blueprint-path}
 ```
 
 This creates `~/.claude/data/blueprints/{id}/progress.json` tracking:
@@ -95,7 +90,7 @@ skip to the next eligible phase or stop.
 
 #### 4b. Mark In-Progress
 ```bash
-python3 ~/.claude/skills/executor/scripts/progress_tracker.py start-phase {id} {phase-num}
+~/.local/bin/python3 ~/.claude/skills/executor/scripts/progress_tracker.py start-phase {id} {phase-num}
 ```
 
 #### 4c. Execute Tasks
@@ -116,7 +111,7 @@ Work through the task list sequentially. For each task:
 
 Log deviations:
 ```bash
-python3 ~/.claude/skills/executor/scripts/progress_tracker.py deviation {id} {phase} "description"
+~/.local/bin/python3 ~/.claude/skills/executor/scripts/progress_tracker.py deviation {id} {phase} "description"
 ```
 
 #### 4d. Verify Phase
@@ -127,7 +122,7 @@ Apply `verification-before-completion` discipline:
 - Only mark complete if verification passes
 
 ```bash
-python3 ~/.claude/skills/executor/scripts/progress_tracker.py complete-phase {id} {phase-num}
+~/.local/bin/python3 ~/.claude/skills/executor/scripts/progress_tracker.py complete-phase {id} {phase-num}
 ```
 
 If verification fails, log the failure and attempt to fix. If fix fails, mark
@@ -154,7 +149,7 @@ Run every item in the blueprint's Final Verification Checklist:
 ### Step 7: Completion Report
 
 ```bash
-python3 ~/.claude/skills/executor/scripts/progress_tracker.py report {id}
+~/.local/bin/python3 ~/.claude/skills/executor/scripts/progress_tracker.py report {id}
 ```
 
 Report includes:
