@@ -33,10 +33,11 @@ Locate and read the blueprint file.
 **Preferred (Sandbox)**:
 ```python
 # sandbox_execute
+import os
 import sys
-sys.path.insert(0, "/Users/joneshong/.claude/skills/executor/scripts")
+sys.path.insert(0, os.path.expanduser("~/.claude/skills/executor/scripts"))
 import parse_blueprint
-data = parse_blueprint.parse("/Users/joneshong/.claude/data/blueprints/{file}.md")
+data = parse_blueprint.parse(os.path.expanduser("~/.claude/data/blueprints/{file}.md"))
 output(data)
 ```
 
